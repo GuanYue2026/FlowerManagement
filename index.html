@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌸 花朵管理系统 | 共享版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:linear-gradient(145deg,#fef9f0,#fff5e6);font-family:'Segoe UI',Roboto,sans-serif;color:#3e2a2a;padding:2rem 1.5rem}
+        .container{max-width:1400px;margin:0 auto}
+        .header{text-align:center;margin-bottom:2rem}
+        .header h1{font-size:2.8rem;background:linear-gradient(135deg,#e67e8f,#f0a6b0);background-clip:text;-webkit-background-clip:text;color:transparent}
+        .sub{color:#b97f6e;margin-top:8px;font-style:italic}
+        .tabs{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:30px;border-bottom:2px solid #ffe0cc;padding-bottom:12px}
+        .tab-btn{background:#fff0e4;border:none;padding:10px 24px;border-radius:40px;font-size:1.1rem;font-weight:600;color:#aa6f5e;cursor:pointer}
+        .tab-btn.active{background:#e67e8f;color:#fff;box-shadow:0 4px 10px rgba(230,126,143,.3)}
+        .tab-pane{display:none;animation:fade .25s}
+        .tab-pane.active-pane{display:block}
+        @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+        .card{background:rgba(255,255,245,.9);border-radius:32px;padding:1.5rem;margin-bottom:2rem;box-shadow:0 8px 20px rgba(100,60,40,.08);border:1px solid #ffe2cf}
+        .search-section{background:#fff6ef}
+        .search-box{position:relative;margin-bottom:20px}
+        .search-box input{width:100%;padding:14px 20px;font-size:1rem;border:2px solid #ffdbc6;border-radius:60px;background:#fff;outline:none}
+        .search-box input:focus{border-color:#e67e8f}
+        .suggestions{position:absolute;background:#fff;width:100%;max-height:240px;overflow-y:auto;border-radius:24px;box-shadow:0 12px 25px rgba(0,0,0,.1);z-index:20;top:58px;display:none}
+        .suggestions div{padding:10px 20px;cursor:pointer;border-bottom:1px solid #ffe0cc}
+        .suggestions div:hover{background:#ffece0}
+        .people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px}
+        .person-card{background:#fff;border-radius:28px;padding:1.2rem;box-shadow:0 5px 12px rgba(0,0,0,.05);border:1px solid #f5e0d0}
+        .person-name{font-size:1.5rem;font-weight:700;border-left:8px solid #e67e8f;padding-left:16px;margin-bottom:15px;color:#4d2e24}
+        .flower-list{display:flex;flex-wrap:wrap;gap:8px;max-height:200px;overflow-y:auto;padding-right:5px}
+        .flower-badge{background:#fdf3ea;border-radius:40px;padding:5px 14px;font-size:.85rem;color:#b45a48;display:inline-flex;align-items:center;gap:5px}
+        .flower-badge::before{content:"🌺";font-size:.8rem}
+        .empty-flowers{color:#bb9b8a;font-style:italic;padding:10px 0}
+        .flower-store-grid{display:flex;flex-wrap:wrap;gap:10px;max-height:380px;overflow-y:auto;background:#fffbf5;padding:16px;border-radius:32px}
+        .store-item{background:#fce9dd;padding:6px 16px;border-radius:40px;font-size:.9rem}
+        .assigned-list{background:#f3efea;border-radius:28px;padding:20px}
+        .stats{background:#ffe8dd;border-radius:28px;padding:20px;margin-top:20px;display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+        .stat-number{font-size:2rem;font-weight:800;color:#e67e8f}
+        textarea,input{width:100%;padding:12px;border-radius:28px;border:1px solid #ffd7bf;background:#fff;font-family:inherit}
+        button{background:#e67e8f;border:none;padding:10px 24px;border-radius:40px;color:#fff;font-weight:700;cursor:pointer;margin-top:10px}
+        button:hover{background:#cf6a7b}
+        hr{margin:20px 0;border-color:#ffd9c4}
+        .footer{text-align:center;margin-top:40px;color:#b58874;font-size:.85rem}
+        .action-buttons{margin-top:12px;display:flex;gap:10px;justify-content:flex-end}
+        .edit-btn,.delete-btn{font-size:.8rem;padding:4px 12px;background:#f5e0d0;color:#a55a46}
+        .delete-btn:hover{background:#e67e8f;color:#fff}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🌸 花朵管理系统</h1>
+        <div class="sub">共享协作 · 全局数据</div>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="people">👥 人员花册</button>
+        <button class="tab-btn" data-tab="flowerlib">🌺 花库管理</button>
+        <button class="tab-btn" data-tab="flowerhouse">🏡 花坊管理</button>
+        <button class="tab-btn" data-tab="addperson">➕ 添加新人员</button>
+    </div>
+    <div id="peopleTab" class="tab-pane active-pane">
+        <div class="card search-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 输入人员或花朵名称... 智能提示" autocomplete="off">
+                <div id="suggestions" class="suggestions"></div>
+            </div>
+            <div id="peopleCountDisplay" style="margin-bottom:15px;font-weight:500">🌸 所有人员 (共 <span id="peopleCount">0</span> 条)</div>
+            <div id="peopleGrid" class="people-grid"></div>
+        </div>
+    </div>
+    <div id="flowerlibTab" class="tab-pane">
+        <div class="card">
+            <h2>🌺 花库列表 (共 <span id="totalFlowerCount">0</span> 种)</h2>
+            <div id="flowerLibraryList" class="flower-store-grid"></div>
+            <div style="margin-top:20px"><input type="text" id="newFlowerName" placeholder="新花朵名称" style="width:70%;padding:10px;border-radius:40px"><button id="addFlowerBtn">➕ 添加新花</button></div>
+        </div>
+    </div>
+    <div id="flowerhouseTab" class="tab-pane">
+        <div class="card">
+            <h2>🏡 花坊分配</h2>
+            <p>💡 输入花朵名称 (逗号分隔) 如: 玫瑰,百合,栀子花</p>
+            <textarea id="flowerAssignInput" rows="2" placeholder="例如: 伯利恒之星,冰蓝矮牵牛,香槟玫瑰" style="margin:12px 0"></textarea>
+            <button id="assignFlowersBtn">✨ 分配至人员</button>
+            <hr>
+            <h3>✅ 已分配的花朵 (至少有一个人拥有)</h3>
+            <div id="assignedFlowersList" class="flower-store-grid assigned-list"></div>
+            <h3 style="margin-top:20px">❌ 待分配的花朵</h3>
+            <div id="unassignedFlowersList" class="flower-store-grid assigned-list"></div>
+            <div class="stats">
+                <div>🌸 花坊总数 <span id="houseTotal" class="stat-number">0</span></div>
+                <div>📤 已分配 <span id="houseAssigned" class="stat-number">0</span></div>
+                <div>📥 待分配 <span id="housePending" class="stat-number">0</span></div>
+                <div>📊 分配率 <span id="houseRate" class="stat-number">0%</span></div>
+            </div>
+        </div>
+    </div>
+    <div id="addpersonTab" class="tab-pane">
+        <div class="card">
+            <h2>➕ 添加新人员</h2>
+            <input type="text" id="newPersonName" placeholder="人员姓名" style="width:100%;padding:12px;border-radius:40px">
+            <textarea id="newPersonFlowers" rows="4" placeholder="拥有的花朵 (每行一个或者逗号分隔)&#10;例如: 伯利恒之星, 星河映蕊, 春晓木香花"></textarea>
+            <button id="addPersonBtn">✨ 添加人员</button>
+        </div>
+    </div>
+    <div class="footer">🌸 数据全局共享 · 所有人实时同步</div>
+</div>
+<script>
+    // 👇👇👇 请把下面两行的内容换成你从 Supabase 复制的 Project URL 和 anon key
+    const SUPABASE_URL =https://qixefgfeydlezafgyene.supabase.co
+    const SUPABASE_KEY =eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpeGVmZ2ZleWRsZXphZmd5ZW5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MjA5MDMsImV4cCI6MjA5MDI5NjkwM30.tgeDFpXr2mcuU_ivQFvgxzRgLG7tr5Ermrx6YFsj3aY
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let flowerLibrary = [], peopleData = [];
+    async function loadData() {
+        const {data:flowers} = await supabase.from('flower_library').select('name').order('name');
+        if(flowers) flowerLibrary = flowers.map(f=>f.name);
+        const {data:people} = await supabase.from('people').select('*').order('name');
+        if(people) peopleData = people;
+        renderAll();
+    }
+    function renderAll() {
+        renderPeople(document.getElementById('searchInput')?.value||'');
+        renderFlowerLibrary();
+        renderFlowerHouse();
+        document.getElementById('peopleCount').innerText = peopleData.length;
+        setupSearchSuggestions();
+    }
+    function renderPeople(filter='') {
+        const grid = document.getElementById('peopleGrid');
+        let filtered = [...peopleData];
+        if(filter.trim()) {
+            const low = filter.toLowerCase();
+            filtered = filtered.filter(p=>p.name.toLowerCase().includes(low)||p.flowers.some(f=>f.toLowerCase().includes(low)));
+        }
+        if(!filtered.length) { grid.innerHTML='<div style="padding:2rem;text-align:center">🌸 暂无匹配人员</div>'; return; }
+        grid.innerHTML = filtered.map(p=>`
+            <div class="person-card">
+                <div class="person-name">${escapeHtml(p.name)}</div>
+                <div class="flower-list">${p.flowers.length?p.flowers.map(f=>`<span class="flower-badge">${escapeHtml(f)}</span>`).join(''):'<div class="empty-flowers">暂无花朵</div>'}</div>
+                <div class="action-buttons">
+                    <button class="edit-btn" data-id="${p.id}" data-name="${escapeHtml(p.name)}">✏️ 编辑</button>
+                    <button class="delete-btn" data-id="${p.id}" data-name="${escapeHtml(p.name)}">🗑️ 删除</button>
+                </div>
+            </div>
+        `).join('');
+        document.querySelectorAll('.edit-btn').forEach(btn=>btn.addEventListener('click',()=>editPerson(parseInt(btn.dataset.id))));
+        document.querySelectorAll('.delete-btn').forEach(btn=>btn.addEventListener('click',()=>deletePerson(parseInt(btn.dataset.id))));
+    }
+    async function editPerson(id) {
+        const p = peopleData.find(p=>p.id===id);
+        if(!p) return;
+        const raw = prompt(`编辑 ${p.name} 拥有的花朵 (用逗号分隔):`, p.flowers.join(', '));
+        if(raw!==null) {
+            let newFlowers = raw.split(/[ ,，]+/).filter(f=>f.trim());
+            newFlowers = [...new Set(newFlowers)];
+            const invalid = newFlowers.filter(f=>!flowerLibrary.includes(f));
+            if(invalid.length) { alert(`以下花朵不在花库中：${invalid.join(', ')}，请先添加到花库。`); return; }
+            const {error} = await supabase.from('people').update({flowers:newFlowers}).eq('id',id);
+            if(error) alert('更新失败'); else loadData();
+        }
+    }
+    async function deletePerson(id) {
+        if(confirm('确定删除该人员吗？')) {
+            const {error}=await supabase.from('people').delete().eq('id',id);
+            if(error) alert('删除失败'); else loadData();
+        }
+    }
+    function renderFlowerLibrary() {
+        document.getElementById('flowerLibraryList').innerHTML = flowerLibrary.map(f=>`<span class="store-item">🌺 ${escapeHtml(f)}</span>`).join('');
+        document.getElementById('totalFlowerCount').innerText = flowerLibrary.length;
+    }
+    function renderFlowerHouse() {
+        const owned = new Set(peopleData.flatMap(p=>p.flowers));
+        const assigned = flowerLibrary.filter(f=>owned.has(f));
+        const unassigned = flowerLibrary.filter(f=>!owned.has(f));
+        document.getElementById('assignedFlowersList').innerHTML = assigned.length?assigned.map(f=>`<span class="store-item">🌺 ${escapeHtml(f)}</span>`).join(''):'<div>暂无已分配花朵</div>';
+        document.getElementById('unassignedFlowersList').innerHTML = unassigned.length?unassigned.map(f=>`<span class="store-item">🌺 ${escapeHtml(f)} 待分配</span>`).join(''):'<div>🎉 所有花都已分配！</div>';
+        const total = flowerLibrary.length, assignedCount = assigned.length, pending = total - assignedCount, rate = total?((assignedCount/total)*100).toFixed(1):0;
+        document.getElementById('houseTotal').innerText = total;
+        document.getElementById('houseAssigned').innerText = assignedCount;
+        document.getElementById('housePending').innerText = pending;
+        document.getElementById('houseRate').innerText = rate+'%';
+    }
+    document.getElementById('addPersonBtn').addEventListener('click',async()=>{
+        const name = document.getElementById('newPersonName').value.trim();
+        let raw = document.getElementById('newPersonFlowers').value;
+        if(!name) { alert('请输入姓名'); return; }
+        if(peopleData.some(p=>p.name===name)) { alert('人员已存在'); return; }
+        let flowers = [];
+        if(raw.trim()) {
+            flowers = raw.split(/[ ,\n，]+/).filter(f=>f.trim());
+            flowers = [...new Set(flowers)];
+            const invalid = flowers.filter(f=>!flowerLibrary.includes(f));
+            if(invalid.length) { alert(`以下花朵不在花库中：${invalid.join(', ')}，请先添加到花库。`); return; }
+        }
+        const {error}=await supabase.from('people').insert({name,flowers});
+        if(error) alert('添加失败'); else { loadData(); document.getElementById('newPersonName').value=''; document.getElementById('newPersonFlowers').value=''; }
+    });
+    document.getElementById('addFlowerBtn').addEventListener('click',async()=>{
+        const newFlower = document.getElementById('newFlowerName').value.trim();
+        if(!newFlower) return;
+        if(flowerLibrary.includes(newFlower)) { alert('花朵已存在'); return; }
+        const {error}=await supabase.from('flower_library').insert({name:newFlower});
+        if(error) alert('添加失败'); else loadData();
+        document.getElementById('newFlowerName').value='';
+    });
+    document.getElementById('assignFlowersBtn').addEventListener('click',async()=>{
+        let raw = document.getElementById('flowerAssignInput').value;
+        if(!raw.trim()) return;
+        let flowerNames = raw.split(/[ ,，]+/).filter(f=>f.trim());
+        flowerNames = [...new Set(flowerNames)];
+        const invalid = flowerNames.filter(f=>!flowerLibrary.includes(f));
+        if(invalid.length) { alert(`以下花朵不在花库中：${invalid.join(', ')}`); return; }
+        if(!peopleData.length) { alert('请先添加人员'); return; }
+        const targetName = prompt(`请选择人员 (现有: ${peopleData.map(p=>p.name).join(', ')})`, peopleData[0].name);
+        if(!targetName) return;
+        const target = peopleData.find(p=>p.name===targetName);
+        if(!target) { alert('人员不存在'); return; }
+        const newFlowers = [...new Set([...target.flowers, ...flowerNames])];
+        const {error}=await supabase.from('people').update({flowers:newFlowers}).eq('id',target.id);
+        if(error) alert('分配失败'); else { loadData(); document.getElementById('flowerAssignInput').value=''; alert(`已将 ${flowerNames.length} 种花分配给 ${targetName}`); }
+    });
+    const searchInput=document.getElementById('searchInput'), suggestionsDiv=document.getElementById('suggestions');
+    function getAllSearchableItems(){ let items=peopleData.map(p=>({type:'person',name:p.name})); flowerLibrary.forEach(f=>items.push({type:'flower',name:f})); return items; }
+    function setupSearchSuggestions(){
+        if(!searchInput) return;
+        const handler=()=>{
+            const val=searchInput.value.trim();
+            if(!val){ suggestionsDiv.style.display='none'; renderPeople(''); return; }
+            const low=val.toLowerCase();
+            const matches=getAllSearchableItems().filter(i=>i.name.toLowerCase().includes(low)).slice(0,12);
+            if(matches.length){
+                suggestionsDiv.innerHTML=matches.map(m=>`<div data-suggest="${escapeHtml(m.name)}">${escapeHtml(m.name)} (${m.type==='person'?'👤':'🌺'})</div>`).join('');
+                suggestionsDiv.style.display='block';
+                document.querySelectorAll('[data-suggest]').forEach(div=>div.addEventListener('click',()=>{ searchInput.value=div.getAttribute('data-suggest'); suggestionsDiv.style.display='none'; renderPeople(div.getAttribute('data-suggest')); }));
+            } else suggestionsDiv.style.display='none';
+            renderPeople(val);
+        };
+        searchInput.addEventListener('input',handler);
+        document.addEventListener('click',(e)=>{ if(!searchInput.contains(e.target)&&!suggestionsDiv.contains(e.target)) suggestionsDiv.style.display='none'; });
+    }
+    function escapeHtml(str){ return str.replace(/[&<>]/g,function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+    document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const id=btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active-pane'));
+        if(id==='people') document.getElementById('peopleTab').classList.add('active-pane');
+        if(id==='flowerlib') document.getElementById('flowerlibTab').classList.add('active-pane');
+        if(id==='flowerhouse') document.getElementById('flowerhouseTab').classList.add('active-pane');
+        if(id==='addperson') document.getElementById('addpersonTab').classList.add('active-pane');
+        if(id==='flowerhouse') renderFlowerHouse();
+    }));
+    loadData();
+</script>
+</body>
+</html>
